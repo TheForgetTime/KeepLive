@@ -15,12 +15,10 @@ class NotificationClickReceiver : BroadcastReceiver() {
     }
 
     override fun onReceive(context: Context, intent: Intent) {
-        if (intent.action == NotificationClickReceiver.CLICK_NOTIFICATION) {
-            if (KeepLive.foregroundNotification != null) {
-                if (KeepLive.foregroundNotification!!.getForegroundNotificationClickListener() != null) {
-                    KeepLive.foregroundNotification!!.getForegroundNotificationClickListener()?.foregroundNotificationClick(context, intent)
-                }
-            }
+        if (intent.action == CLICK_NOTIFICATION) {
+            //回调方法
+            KeepLive.foregroundNotification?.clickListener?.foregroundNotificationClick(context, intent)
         }
     }
+
 }

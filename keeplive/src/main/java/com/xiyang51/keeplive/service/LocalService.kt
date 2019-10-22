@@ -9,103 +9,105 @@ import com.xiyang51.keeplive.KeepLive
 import com.xiyang51.keeplive.R
 import com.xiyang51.keeplive.config.NotificationUtils
 import com.xiyang51.keeplive.receiver.NotificationClickReceiver
-import com.xiyang51.keeplive.receiver.OnepxReceiver
 
+/** 本地服务*/
 class LocalService : Service() {
-    private var mediaPlayer: MediaPlayer? = null
-    private var mBilder: MyBilder? = null
+
+    private lateinit var mediaPlayer: MediaPlayer
+    private lateinit var mBinder: MyBinder
 
     override fun onCreate() {
         super.onCreate()
-        if (mBilder == null) {
-            mBilder = MyBilder()
-        }
+        mBinder = MyBinder()
     }
 
     override fun onBind(intent: Intent): IBinder? {
-        return mBilder
+        return mBinder
     }
 
     override fun onStartCommand(intent: Intent, flags: Int, startId: Int): Int {
-        //播放无声音乐
-        if (mediaPlayer == null) {
-            mediaPlayer = MediaPlayer.create(this, R.raw.novioce)
-            //声音设置为0
-            mediaPlayer?.setVolume(0f, 0f)
-            mediaPlayer?.isLooping = true//循环播放
-            play()
-        }
-        //启用前台服务，提升优先级
-        if (KeepLive.foregroundNotification != null) {
-            val intent2 = Intent(applicationContext, NotificationClickReceiver::class.java)
-            intent2.action = NotificationClickReceiver.CLICK_NOTIFICATION
-            val notification = NotificationUtils.createNotification(this, KeepLive.foregroundNotification!!.getTitle(), KeepLive.foregroundNotification!!.getDescription(), KeepLive.foregroundNotification!!.getIconRes(), intent2)
-            startForeground(13691, notification)
-        }
-        //绑定守护进程
         try {
-            val intent3 = Intent(this, RemoteService::class.java)
-            this.bindService(intent3, connection, Context.BIND_ABOVE_CLIENT)
+            //播放无声音乐
+            playMusic()
+            //启用前台服务，提升优先级
+            startForegroundService()
+            //绑定守护进程
+            bindGuardService()
+            //隐藏服务通知
+            hideServiceNotification()
+
+            KeepLive.keepLiveService.onWorking()
         } catch (e: Exception) {
         }
-
-        //隐藏服务通知
-        try {
-            if (Build.VERSION.SDK_INT < 25) {
-                startService(Intent(this, HideForegroundService::class.java))
-            }
-        } catch (e: Exception) {
-        }
-
-        if (KeepLive.keepLiveService != null) {
-            KeepLive.keepLiveService!!.onWorking()
-        }
-        return Service.START_STICKY
+        return START_STICKY
     }
 
-    private fun play() {
-        if (mediaPlayer != null && !mediaPlayer!!.isPlaying) {
-            mediaPlayer?.start()
-        }
+    /** 隐藏服务通知*/
+    private fun hideServiceNotification() {
+        if (Build.VERSION.SDK_INT < 25)
+            startService(Intent(this, HideForegroundService::class.java))
     }
 
-    private inner class MyBilder : GuardAidl.Stub() {
+    /** 绑定守护进程*/
+    private fun bindGuardService() {
+        val intent = Intent(this, RemoteService::class.java)
+        bindService(intent, connection, Context.BIND_ABOVE_CLIENT)
+    }
 
+    /** 启动前台服务*/
+    private fun startForegroundService() {
+        val intent = Intent(applicationContext, NotificationClickReceiver::class.java)
+        intent.action = NotificationClickReceiver.CLICK_NOTIFICATION
+        val notification = NotificationUtils.createNotification(
+                this,
+                KeepLive.foregroundNotification.title,
+                KeepLive.foregroundNotification.description,
+                KeepLive.foregroundNotification.iconRes,
+                intent)
+        startForeground(13691, notification)
+    }
+
+    /** 播放音乐*/
+    private fun playMusic() {
+        mediaPlayer = MediaPlayer.create(this, R.raw.novioce)
+        //声音设置为0
+        mediaPlayer.setVolume(0f, 0f)
+        mediaPlayer.isLooping = true//循环播放
+        if (!mediaPlayer.isPlaying) mediaPlayer.start()
+    }
+
+    private inner class MyBinder : GuardAidl.Stub() {
         @Throws(RemoteException::class)
         override fun wakeUp(title: String, discription: String, iconRes: Int) {
-
         }
     }
 
     private val connection = object : ServiceConnection {
 
         override fun onServiceDisconnected(name: ComponentName) {
-            val remoteService = Intent(this@LocalService,
-                    RemoteService::class.java)
+            val remoteService = Intent(this@LocalService, RemoteService::class.java)
             this@LocalService.startService(remoteService)
-            val intent = Intent(this@LocalService, RemoteService::class.java)
-            this@LocalService.bindService(intent, this,
-                    Context.BIND_ABOVE_CLIENT)
+            this@LocalService.bindService(remoteService, this, Context.BIND_ABOVE_CLIENT)
         }
 
         override fun onServiceConnected(name: ComponentName, service: IBinder) {
             try {
-                if (mBilder != null && KeepLive.foregroundNotification != null) {
-                    val guardAidl = GuardAidl.Stub.asInterface(service)
-                    guardAidl.wakeUp(KeepLive.foregroundNotification?.getTitle(), KeepLive.foregroundNotification?.getDescription(), KeepLive.foregroundNotification!!.getIconRes())
-                }
+                val guardAidl = GuardAidl.Stub.asInterface(service)
+                guardAidl.wakeUp(
+                        KeepLive.foregroundNotification.title,
+                        KeepLive.foregroundNotification.description,
+                        KeepLive.foregroundNotification.iconRes)
             } catch (e: RemoteException) {
                 e.printStackTrace()
             }
-
         }
     }
 
     override fun onDestroy() {
         super.onDestroy()
+        //解绑服务
         unbindService(connection)
-        if (KeepLive.keepLiveService != null) {
-            KeepLive.keepLiveService?.onStop()
-        }
+        KeepLive.keepLiveService.onStop()
     }
+
 }

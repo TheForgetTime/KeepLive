@@ -8,32 +8,34 @@ import com.xiyang51.keeplive.KeepLive
 import com.xiyang51.keeplive.config.NotificationUtils
 import com.xiyang51.keeplive.receiver.NotificationClickReceiver
 
+/** 隐藏前台服务通知*/
 class HideForegroundService : Service() {
 
-    private var handler: android.os.Handler? = null
+    private var handler: Handler = Handler()
+
     override fun onStartCommand(intent: Intent, flags: Int, startId: Int): Int {
         startForeground()
-        if (handler == null) {
-            handler = Handler()
-        }
-        handler!!.postDelayed({
+        handler.postDelayed({
             stopForeground(true)
             stopSelf()
         }, 2000)
-        return Service.START_NOT_STICKY
+        return START_NOT_STICKY
     }
 
 
+    /** 显示通知，开启前台服务*/
     private fun startForeground() {
-        if (KeepLive.foregroundNotification != null) {
-            val intent = Intent(applicationContext, NotificationClickReceiver::class.java)
-            intent.action = NotificationClickReceiver.CLICK_NOTIFICATION
-            val notification = NotificationUtils.createNotification(this, KeepLive.foregroundNotification!!.getTitle(), KeepLive.foregroundNotification!!.getDescription(), KeepLive.foregroundNotification!!.getIconRes(), intent)
-            startForeground(13691, notification)
-        }
+        val intent = Intent(applicationContext, NotificationClickReceiver::class.java)
+        intent.action = NotificationClickReceiver.CLICK_NOTIFICATION
+        val notification = NotificationUtils.createNotification(
+                this,
+                KeepLive.foregroundNotification.title,
+                KeepLive.foregroundNotification.description,
+                KeepLive.foregroundNotification.iconRes,
+                intent)
+        startForeground(13691, notification)
     }
 
-    override fun onBind(intent: Intent): IBinder? {
-        return null
-    }
+    override fun onBind(intent: Intent): IBinder? = null
+
 }

@@ -16,4 +16,5 @@ interface KeepLiveService {
      * 由于服务可能会被多次终止，该方法可能重复调用，需同onWorking配套使用，如注册和注销
      */
     fun onStop()
+
 }

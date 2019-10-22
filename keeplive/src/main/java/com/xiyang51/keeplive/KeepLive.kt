@@ -14,51 +14,65 @@ import com.xiyang51.keeplive.service.RemoteService
 
 object KeepLive {
 
-    /**
-     * 运行模式
-     */
+    /** 运行模式 */
     enum class RunMode {
-        /**
-         * 省电模式
-         * 省电一些，但保活效果会差一点
-         */
+        /** 省电模式：省电一些，但保活效果会差一点*/
         ENERGY,
-        /**
-         * 流氓模式
-         * 相对耗电，但可造就不死之身
-         */
+        /** 流氓模式：相对耗电，但可造就不死之身*/
         ROGUE
     }
 
-    var foregroundNotification: ForegroundNotification? = null
-    var keepLiveService: KeepLiveService? = null
-    var runMode: RunMode? = null
+    /** 前台通知*/
+    lateinit var foregroundNotification: ForegroundNotification
+    /** 保活的服务*/
+    lateinit var keepLiveService: KeepLiveService
+    /** 运行模式*/
+    private lateinit var runMode: RunMode
 
-    fun startWork(@NonNull application: Application, @NonNull runMode: RunMode, @NonNull foregroundNotification: ForegroundNotification,
-                  keepLiveService: KeepLiveService) {
-        if (isMain(application)) {
-            KeepLive.foregroundNotification = foregroundNotification
-            KeepLive.keepLiveService = keepLiveService
-            KeepLive.runMode = runMode
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-                //启动定时器，在定时器中启动本地服务和守护进程
-                val intent = Intent(application, JobHandlerService::class.java)
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                    application.startForegroundService(intent)
-                } else {
-                    application.startService(intent)
-                }
-            } else {
-                //启动本地服务
-                val localIntent = Intent(application, LocalService::class.java)
-                //启动守护进程
-                val guardIntent = Intent(application, RemoteService::class.java)
-                application.startService(localIntent)
-                application.startService(guardIntent)
-            }
+    fun startWork(application: Application, runMode: RunMode, foregroundNotification: ForegroundNotification, keepLiveService: KeepLiveService) {
+        if (!isMain(application)) return
+        KeepLive.foregroundNotification = foregroundNotification
+        KeepLive.keepLiveService = keepLiveService
+        KeepLive.runMode = runMode
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            //启动定时器，在定时器中启动本地服务和守护进程
+            startService21(application)
+        } else {
+            startService(application)
         }
     }
 
+    /**
+     * 启动服务
+     * @param application Application
+     */
+    private fun startService(application: Application) {
+        //启动本地服务
+        val localIntent = Intent(application, LocalService::class.java)
+        //启动守护进程
+        val guardIntent = Intent(application, RemoteService::class.java)
+        application.startService(localIntent)
+        application.startService(guardIntent)
+    }
+
+    /**
+     * 21及以上启动服务
+     * @param application Application
+     */
+    private fun startService21(application: Application) {
+        val intent = Intent(application, JobHandlerService::class.java)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            application.startForegroundService(intent)
+        } else {
+            application.startService(intent)
+        }
+    }
+
+    /**
+     * 应用是否在运行
+     * @param app Application
+     * @return Boolean
+     */
     private fun isMain(app: Application): Boolean {
         val pid = android.os.Process.myPid()
         var processName = ""
@@ -69,8 +83,8 @@ object KeepLive {
                 break
             }
         }
-        val packageName = app.packageName
-        return processName == packageName
+        return processName == app.packageName
     }
+
 }
 

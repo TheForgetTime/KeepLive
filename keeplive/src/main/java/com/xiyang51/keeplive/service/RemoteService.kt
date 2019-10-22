@@ -7,26 +7,22 @@ import android.content.Intent
 import android.content.ServiceConnection
 import android.os.Build
 import android.os.IBinder
-import android.os.PowerManager
 import android.os.RemoteException
 import com.xiyang51.keeplive.GuardAidl
 import com.xiyang51.keeplive.config.NotificationUtils
 import com.xiyang51.keeplive.receiver.NotificationClickReceiver
 
+/** 远程服务*/
 class RemoteService : Service() {
 
-    private var mBilder: MyBilder? = null
+    private lateinit var mBinder: MyBinder
 
     override fun onCreate() {
         super.onCreate()
-        if (mBilder == null) {
-            mBilder = MyBilder()
-        }
+        mBinder = MyBinder()
     }
 
-    override fun onBind(intent: Intent): IBinder? {
-        return mBilder
-    }
+    override fun onBind(intent: Intent): IBinder? = mBinder
 
     override fun onStartCommand(intent: Intent, flags: Int, startId: Int): Int {
         try {
@@ -34,7 +30,7 @@ class RemoteService : Service() {
                     connection, Context.BIND_ABOVE_CLIENT)
         } catch (e: Exception) {
         }
-        return Service.START_STICKY
+        return START_STICKY
     }
 
     override fun onDestroy() {
@@ -42,7 +38,7 @@ class RemoteService : Service() {
         unbindService(connection)
     }
 
-    private inner class MyBilder : GuardAidl.Stub() {
+    private inner class MyBinder : GuardAidl.Stub() {
         @Throws(RemoteException::class)
         override fun wakeUp(title: String, discription: String, iconRes: Int) {
             if (Build.VERSION.SDK_INT < 25) {
@@ -56,11 +52,9 @@ class RemoteService : Service() {
 
     private val connection = object : ServiceConnection {
         override fun onServiceDisconnected(name: ComponentName) {
-            val remoteService = Intent(this@RemoteService,
-                    LocalService::class.java)
+            val remoteService = Intent(this@RemoteService, LocalService::class.java)
             this@RemoteService.startService(remoteService)
-            this@RemoteService.bindService(Intent(this@RemoteService,
-                    LocalService::class.java), this, Context.BIND_ABOVE_CLIENT)
+            this@RemoteService.bindService(remoteService, this, Context.BIND_ABOVE_CLIENT)
         }
 
         override fun onServiceConnected(name: ComponentName, service: IBinder) {}

@@ -15,19 +15,23 @@ import com.xiyang51.keeplive.KeepLive
 import com.xiyang51.keeplive.config.NotificationUtils
 import com.xiyang51.keeplive.receiver.NotificationClickReceiver
 
-@SuppressWarnings(value = ["unchecked", "deprecation"])
+/** JobHandlerService */
 @RequiresApi(Build.VERSION_CODES.LOLLIPOP)
 class JobHandlerService : JobService() {
 
     private var mJobScheduler: JobScheduler? = null
 
-    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        var startId = startId
+    override fun onStartCommand(intent: Intent, flags: Int, startId: Int): Int {
         startService(this)
+        startJobScheduler(startId)
+        return Service.START_STICKY
+    }
+
+    /** 启动 JobScheduler*/
+    private fun startJobScheduler(id: Int) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
             mJobScheduler = getSystemService(Context.JOB_SCHEDULER_SERVICE) as JobScheduler
-            val builder = JobInfo.Builder(startId++,
-                    ComponentName(packageName, JobHandlerService::class.java.name))
+            val builder = JobInfo.Builder(id, ComponentName(packageName, JobHandlerService::class.java.name))
             if (Build.VERSION.SDK_INT >= 24) {
                 builder.setMinimumLatency(JobInfo.DEFAULT_INITIAL_BACKOFF_MILLIS) //执行的最小延迟时间
                 builder.setOverrideDeadline(JobInfo.DEFAULT_INITIAL_BACKOFF_MILLIS)  //执行的最长延时时间
@@ -40,17 +44,22 @@ class JobHandlerService : JobService() {
             builder.setRequiresCharging(true) // 当插入充电器，执行该任务
             mJobScheduler?.schedule(builder.build())
         }
-        return Service.START_STICKY
     }
 
+    /**
+     * 启动服务
+     * @param context Context
+     */
     private fun startService(context: Context) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            if (KeepLive.foregroundNotification != null) {
-                val intent = Intent(applicationContext, NotificationClickReceiver::class.java)
-                intent.action = NotificationClickReceiver.CLICK_NOTIFICATION
-                val notification = NotificationUtils.createNotification(this, KeepLive.foregroundNotification!!.getTitle(), KeepLive.foregroundNotification!!.getDescription(), KeepLive.foregroundNotification!!.getIconRes(), intent)
-                startForeground(13691, notification)
-            }
+            val intent = Intent(applicationContext, NotificationClickReceiver::class.java)
+            intent.action = NotificationClickReceiver.CLICK_NOTIFICATION
+            val notification = NotificationUtils.createNotification(
+                    this, KeepLive.foregroundNotification.title,
+                    KeepLive.foregroundNotification.description,
+                    KeepLive.foregroundNotification.iconRes,
+                    intent)
+            startForeground(13691, notification)
         }
         //启动本地服务
         val localIntent = Intent(context, LocalService::class.java)
@@ -60,6 +69,11 @@ class JobHandlerService : JobService() {
         startService(guardIntent)
     }
 
+    /**
+     * 启动job
+     * @param jobParameters JobParameters
+     * @return Boolean
+     */
     override fun onStartJob(jobParameters: JobParameters): Boolean {
         if (!isServiceRunning(applicationContext, "com.xiyang51.keeplive.service.LocalService") || !isServiceRunning(applicationContext, "$packageName:remote")) {
             startService(this)
@@ -67,6 +81,11 @@ class JobHandlerService : JobService() {
         return false
     }
 
+    /**
+     * 停止job
+     * @param jobParameters JobParameters
+     * @return Boolean
+     */
     override fun onStopJob(jobParameters: JobParameters): Boolean {
         if (!isServiceRunning(applicationContext, "com.xiyang51.keeplive.service.LocalService") || !isServiceRunning(applicationContext, "$packageName:remote")) {
             startService(this)
@@ -74,19 +93,22 @@ class JobHandlerService : JobService() {
         return false
     }
 
+    /**
+     * 服务是否正在运行
+     * @param ctx Context
+     * @param className String
+     * @return Boolean
+     */
     private fun isServiceRunning(ctx: Context, className: String): Boolean {
         var isRunning = false
-        val activityManager = ctx
-                .getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
-        val servicesList = activityManager
-                .getRunningServices(Integer.MAX_VALUE)
+        val activityManager = ctx.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
+        val servicesList = activityManager.getRunningServices(Integer.MAX_VALUE)
         val l = servicesList.iterator()
         while (l.hasNext()) {
             val si = l.next()
-            if (className == si.service.className) {
-                isRunning = true
-            }
+            if (className == si.service.className) isRunning = true
         }
         return isRunning
     }
+
 }
